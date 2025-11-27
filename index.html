@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>REDAVIT | Sistema de Gestión Integral</title>
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -203,7 +204,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-lg-6">
+                             <div class="col-lg-6">
                                 <div class="card card-section">
                                     <div class="card-header-custom"><i class="fas fa-gavel"></i> Hecho y Judicial</div>
                                     <div class="card-body">
@@ -303,9 +304,15 @@
 
     <script>
         // --- CONEXIÓN SUPABASE ---
+        // Extraemos la función constructora para no pisar el nombre 'supabase'
+        const { createClient } = supabase;
+
+        // TUS CREDENCIALES
         const SUPABASE_URL = 'https://yqaiebdabrxgjwrmiacc.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_80AU6Mag7-wOJp4gmmzi3g_LdbAkpSb';
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        // Creamos la conexión con un nombre distinto (con guion bajo)
+        const _supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
         // --- DATABASE LOCAL STATE ---
         const DB = {
@@ -317,17 +324,17 @@
 
         // --- INICIALIZACIÓN ---
         document.addEventListener('DOMContentLoaded', async () => {
-            // 1. Inicializar Modales
+            // Inicializar Modales Bootstrap
             modals.mAsis = new bootstrap.Modal(document.getElementById('mAsis'));
             modals.mE2 = new bootstrap.Modal(document.getElementById('mE2'));
             modals.mMon = new bootstrap.Modal(document.getElementById('mMon'));
             modals.mFam = new bootstrap.Modal(document.getElementById('mFam'));
             
-            // 2. Cargar APIs Geográficas
+            // Cargar APIs Geográficas
             loadAPI(); 
             document.getElementById('sysDate').innerText = new Date().toLocaleDateString();
 
-            // 3. Cargar Datos desde Supabase
+            // Cargar datos de la nube
             await loadFromSupabase();
         });
 
@@ -335,28 +342,23 @@
         async function loadFromSupabase() {
             try {
                 // A. Usuarios
-                let { data: users, error: errU } = await supabase.from('usuarios').select('*');
+                let { data: users, error: errU } = await _supabase.from('usuarios').select('*');
                 if (users) DB.users = users;
-                else console.log("Nota: Tabla usuarios vacía o error", errU);
-
+                
                 // B. Casos
-                let { data: cases, error: errC } = await supabase.from('casos').select('*');
+                let { data: cases, error: errC } = await _supabase.from('casos').select('*');
                 if (cases) {
-                    // Mapeamos los datos para asegurar que los arrays JSON no sean null
                     DB.cases = cases.map(c => ({
                         ...c,
                         fam: c.fam || [],
                         asistencias: c.asistencias || [],
                         etapa2: c.etapa2 || [],
                         monitoreo: c.monitoreo || [],
-                        // Desempaquetamos 'extra' si existe, para tener 'dom' y otros a mano
                         ...(c.extra || {})
                     }));
-                } else console.log("Nota: Tabla casos vacía o error", errC);
-
+                }
             } catch (e) {
                 console.error("Error conectando a Supabase:", e);
-                alert("Error de conexión. Revisa la consola.");
             }
         }
 
@@ -370,20 +372,19 @@
             let u = { u: v('rUser'), p: v('rP1'), n: v('rNom'), a: v('rApe') };
             if (u.p != v('rP2')) return alert('Las contraseñas no coinciden');
 
-            // Insertar en Supabase
-            const { error } = await supabase.from('usuarios').insert([u]);
+            // Insertar en Supabase (Usando _supabase)
+            const { error } = await _supabase.from('usuarios').insert([u]);
             
             if (error) {
                 alert('Error al registrar: ' + error.message);
             } else {
                 alert('Usuario registrado exitosamente.');
-                await loadFromSupabase(); // Recargar la lista local
+                await loadFromSupabase(); // Recargar lista
                 goView('view-login');
             }
         }
 
         function login(){
-            // Validamos contra la lista en memoria (ya cargada desde Supabase)
             let usr = DB.users.find(x => x.u == v('logUser') && x.p == v('logPass'));
             if(usr){ 
                 DB.curUser = usr; 
@@ -391,7 +392,7 @@
                 document.getElementById('dashUser').innerText = usr.n; 
                 searchCase(); 
             } else {
-                alert('Credenciales incorrectas. Verifique usuario y contraseña.');
+                alert('Credenciales incorrectas.');
             }
         }
         
@@ -417,15 +418,13 @@
         }
 
         async function newCase(){
-            let id = String(Date.now()); // ID único basado en tiempo
-            // Objeto base local
+            let id = String(Date.now());
             let nc = {
                 id: id, ape: '', nom: '', dni: '', 
                 fam: [], asistencias: [], etapa2: [], monitoreo: [], extra: {}
             };
 
-            // Crear fila vacía en Supabase
-            const { error } = await supabase.from('casos').insert([{
+            const { error } = await _supabase.from('casos').insert([{
                 id: nc.id, ape: '', nom: '', dni: '', 
                 fam: [], asistencias: [], etapa2: [], monitoreo: [], extra: {}
             }]);
@@ -443,17 +442,14 @@
             DB.curCase = DB.cases.find(x => x.id == id);
             goView('view-system');
             
-            // Header Info
             document.getElementById('sysID').innerText = id; 
             document.getElementById('sysUser').innerText = DB.curUser.n;
             
-            // Cargar datos en Inputs
             document.getElementById('e1_leg').value = id; 
             document.getElementById('e1_ape').value = DB.curCase.ape || ''; 
             document.getElementById('e1_nom').value = DB.curCase.nom || ''; 
             document.getElementById('e1_dni').value = DB.curCase.dni || '';
             
-            // Cargar 'extra' (domicilio)
             if(DB.curCase.dom) document.getElementById('e1_dom').value = DB.curCase.dom;
             else document.getElementById('e1_dom').value = '';
 
@@ -461,20 +457,16 @@
         }
 
         async function saveE1(){
-            // 1. Actualizar estado local
             DB.curCase.ape = v('e1_ape'); 
             DB.curCase.nom = v('e1_nom'); 
             DB.curCase.dni = v('e1_dni');
-            DB.curCase.dom = v('e1_dom'); // Se guardará en 'extra'
+            DB.curCase.dom = v('e1_dom'); 
 
-            // 2. Guardar en Supabase
             await saveDB(); 
-            alert("Etapa 1 guardada correctamente en la nube.");
+            alert("Etapa 1 guardada correctamente.");
         }
 
-        // --- LA FUNCIÓN MÁGICA DE GUARDADO ---
         async function saveDB(){ 
-            // Preparamos el objeto EXACTAMENTE como lo espera la tabla de Supabase
             let casoParaNube = {
                 id: DB.curCase.id,
                 ape: DB.curCase.ape,
@@ -484,14 +476,12 @@
                 asistencias: DB.curCase.asistencias,
                 etapa2: DB.curCase.etapa2,
                 monitoreo: DB.curCase.monitoreo,
-                extra: { // Todo lo que no tiene columna propia va aquí
+                extra: { 
                     dom: DB.curCase.dom,
-                    // Aquí podrías agregar más campos de formularios si los creas
                 }
             };
 
-            // Upsert: Actualiza
-            const { error } = await supabase
+            const { error } = await _supabase
                 .from('casos')
                 .upsert(casoParaNube);
             
@@ -535,7 +525,6 @@
                 let arr = m=='mAsis'?'asistencias':(m=='mE2'?'etapa2':'monitoreo');
                 let data = DB.curCase[arr][idx];
                 if(data && data.f) f.querySelector('input[type=date]').value = data.f; 
-                // Aquí podrías cargar más campos específicos si lo deseas
             }
             modals[m].show();
         }
@@ -550,7 +539,7 @@
             if(idx=='N') DB.curCase[arr].push(obj); 
             else DB.curCase[arr][idx] = obj;
             
-            await saveDB(); // Guardar cambios en nube
+            await saveDB(); 
             renderAll(); 
             modals[modId].hide();
         }
@@ -558,7 +547,7 @@
         async function delItem(arr, i){ 
             if(confirm('¿Está seguro de eliminar este registro?')){ 
                 DB.curCase[arr].splice(i,1); 
-                await saveDB(); // Guardar cambios en nube
+                await saveDB();
                 renderAll(); 
             } 
         }
@@ -579,7 +568,7 @@
             if(!obj.a || !obj.n) return alert('Apellido y Nombre son obligatorios');
             
             DB.curCase.fam.push(obj); 
-            await saveDB(); // Guardar cambios
+            await saveDB();
             toggleFam('list'); 
             renderAll();
         }
@@ -587,7 +576,6 @@
         // --- UTILS ---
         function v(id){ return document.getElementById(id).value; }
         
-        // --- GEOREF API (Datos del Gobierno) ---
         const API="https://apis.datos.gob.ar/georef/api";
         async function loadAPI(){
             try{
