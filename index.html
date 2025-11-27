@@ -304,14 +304,12 @@
 
     <script>
         // --- CONEXIÓN SUPABASE ---
-        // Extraemos la función constructora para no pisar el nombre 'supabase'
         const { createClient } = supabase;
 
         // TUS CREDENCIALES
         const SUPABASE_URL = 'https://yqaiebdabrxgjwrmiacc.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_80AU6Mag7-wOJp4gmmzi3g_LdbAkpSb';
         
-        // Creamos la conexión con un nombre distinto (con guion bajo)
         const _supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
         // --- DATABASE LOCAL STATE ---
@@ -324,41 +322,39 @@
 
         // --- INICIALIZACIÓN ---
         document.addEventListener('DOMContentLoaded', async () => {
-            // Inicializar Modales Bootstrap
             modals.mAsis = new bootstrap.Modal(document.getElementById('mAsis'));
             modals.mE2 = new bootstrap.Modal(document.getElementById('mE2'));
             modals.mMon = new bootstrap.Modal(document.getElementById('mMon'));
             modals.mFam = new bootstrap.Modal(document.getElementById('mFam'));
             
-            // Cargar APIs Geográficas
             loadAPI(); 
             document.getElementById('sysDate').innerText = new Date().toLocaleDateString();
 
-            // Cargar datos de la nube
             await loadFromSupabase();
         });
 
-        // FUNCIÓN: CARGAR DATOS DE LA NUBE
+        // FUNCIÓN: CARGAR DATOS (CON PROTECCIÓN CONTRA NULOS)
         async function loadFromSupabase() {
             try {
                 // A. Usuarios
-                let { data: users, error: errU } = await _supabase.from('usuarios').select('*');
+                let { data: users } = await _supabase.from('usuarios').select('*');
                 if (users) DB.users = users;
-                
+
                 // B. Casos
-                let { data: cases, error: errC } = await _supabase.from('casos').select('*');
+                let { data: cases } = await _supabase.from('casos').select('*');
                 if (cases) {
                     DB.cases = cases.map(c => ({
                         ...c,
-                        fam: c.fam || [],
-                        asistencias: c.asistencias || [],
-                        etapa2: c.etapa2 || [],
-                        monitoreo: c.monitoreo || [],
+                        // PROTECCIÓN: Si es null o no es array, ponemos []
+                        fam: Array.isArray(c.fam) ? c.fam : [],
+                        asistencias: Array.isArray(c.asistencias) ? c.asistencias : [],
+                        etapa2: Array.isArray(c.etapa2) ? c.etapa2 : [],
+                        monitoreo: Array.isArray(c.monitoreo) ? c.monitoreo : [],
                         ...(c.extra || {})
                     }));
                 }
             } catch (e) {
-                console.error("Error conectando a Supabase:", e);
+                console.error("Error Supabase:", e);
             }
         }
 
@@ -371,17 +367,9 @@
         async function register(){
             let u = { u: v('rUser'), p: v('rP1'), n: v('rNom'), a: v('rApe') };
             if (u.p != v('rP2')) return alert('Las contraseñas no coinciden');
-
-            // Insertar en Supabase (Usando _supabase)
             const { error } = await _supabase.from('usuarios').insert([u]);
-            
-            if (error) {
-                alert('Error al registrar: ' + error.message);
-            } else {
-                alert('Usuario registrado exitosamente.');
-                await loadFromSupabase(); // Recargar lista
-                goView('view-login');
-            }
+            if (error) alert('Error: ' + error.message);
+            else { alert('Registrado OK'); await loadFromSupabase(); goView('view-login'); }
         }
 
         function login(){
@@ -391,9 +379,7 @@
                 goView('view-dashboard'); 
                 document.getElementById('dashUser').innerText = usr.n; 
                 searchCase(); 
-            } else {
-                alert('Credenciales incorrectas.');
-            }
+            } else alert('Credenciales incorrectas.');
         }
         
         function logout(){ location.reload(); }
@@ -401,9 +387,11 @@
         // --- DASHBOARD ---
         function searchCase(){
             let q = v('searchIn').toLowerCase();
-            let t = document.querySelector('#tRes tbody'); 
-            t.innerHTML = '';
+            let t = document.querySelector('#tRes tbody'); t.innerHTML = '';
             
+            // Protección extra al buscar
+            if(!Array.isArray(DB.cases)) DB.cases = [];
+
             DB.cases.forEach(c => {
                 if(!q || c.id.toLowerCase().includes(q) || (c.ape && c.ape.toLowerCase().includes(q)) || (c.dni && c.dni.includes(q))){
                     t.innerHTML += `<tr>
@@ -419,21 +407,19 @@
 
         async function newCase(){
             let id = String(Date.now());
+            // Inicializamos explícitamente como arrays vacíos
             let nc = {
                 id: id, ape: '', nom: '', dni: '', 
                 fam: [], asistencias: [], etapa2: [], monitoreo: [], extra: {}
             };
 
-            const { error } = await _supabase.from('casos').insert([{
-                id: nc.id, ape: '', nom: '', dni: '', 
-                fam: [], asistencias: [], etapa2: [], monitoreo: [], extra: {}
-            }]);
+            const { error } = await _supabase.from('casos').insert([nc]);
 
             if(!error){
                 DB.cases.push(nc);
                 openCase(id);
             } else {
-                alert("Error al crear caso en la nube: " + error.message);
+                alert("Error al crear: " + error.message);
             }
         }
 
@@ -461,59 +447,57 @@
             DB.curCase.nom = v('e1_nom'); 
             DB.curCase.dni = v('e1_dni');
             DB.curCase.dom = v('e1_dom'); 
-
             await saveDB(); 
-            alert("Etapa 1 guardada correctamente.");
+            alert("Etapa 1 guardada.");
         }
 
         async function saveDB(){ 
+            // Aseguramos que se envíen arrays, nunca null
             let casoParaNube = {
                 id: DB.curCase.id,
                 ape: DB.curCase.ape,
                 nom: DB.curCase.nom,
                 dni: DB.curCase.dni,
-                fam: DB.curCase.fam,
-                asistencias: DB.curCase.asistencias,
-                etapa2: DB.curCase.etapa2,
-                monitoreo: DB.curCase.monitoreo,
-                extra: { 
-                    dom: DB.curCase.dom,
-                }
+                fam: Array.isArray(DB.curCase.fam) ? DB.curCase.fam : [],
+                asistencias: Array.isArray(DB.curCase.asistencias) ? DB.curCase.asistencias : [],
+                etapa2: Array.isArray(DB.curCase.etapa2) ? DB.curCase.etapa2 : [],
+                monitoreo: Array.isArray(DB.curCase.monitoreo) ? DB.curCase.monitoreo : [],
+                extra: { dom: DB.curCase.dom }
             };
 
-            const { error } = await _supabase
-                .from('casos')
-                .upsert(casoParaNube);
-            
-            if(error) {
-                console.error("Error guardando:", error);
-                alert("Hubo un error al guardar: " + error.message);
-            }
+            const { error } = await _supabase.from('casos').upsert(casoParaNube);
+            if(error) { console.error(error); alert("Error al guardar: " + error.message); }
         }
 
-        // --- TABLAS Y RENDERIZADO ---
+        // --- TABLAS Y RENDERIZADO (PROTEGIDO) ---
         var modals = {};
 
         function renderAll(){
+            // Verificación de seguridad antes de renderizar
+            if(!DB.curCase.fam) DB.curCase.fam = [];
+            if(!DB.curCase.asistencias) DB.curCase.asistencias = [];
+            if(!DB.curCase.etapa2) DB.curCase.etapa2 = [];
+            if(!DB.curCase.monitoreo) DB.curCase.monitoreo = [];
+
             // Familia
             let tf = document.querySelector('#tbFam tbody'); tf.innerHTML='';
-            if(DB.curCase.fam) DB.curCase.fam.forEach((x,i)=>tf.innerHTML+=`<tr><td>${x.a}, ${x.n}</td><td>${x.p}</td><td>${x.d}</td><td><small>${x.cel} / ${x.dom}</small></td><td><small>${x.o}</small></td><td class="text-end"><button class="btn btn-sm btn-danger" onclick="delItem('fam',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
-            document.getElementById('cntFam').innerText = DB.curCase.fam ? DB.curCase.fam.length : 0;
+            DB.curCase.fam.forEach((x,i)=>tf.innerHTML+=`<tr><td>${x.a}, ${x.n}</td><td>${x.p}</td><td>${x.d}</td><td><small>${x.cel} / ${x.dom}</small></td><td><small>${x.o}</small></td><td class="text-end"><button class="btn btn-sm btn-danger" onclick="delItem('fam',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
+            document.getElementById('cntFam').innerText = DB.curCase.fam.length;
             
             // Asistencias
             let ta=document.querySelector('#tbAsis tbody'); ta.innerHTML='';
-            if(DB.curCase.asistencias) DB.curCase.asistencias.forEach((x,i)=>ta.innerHTML+=`<tr><td>${i+1}</td><td>${x.f}</td><td>${x.o}</td><td>${x.ab}</td><td class="text-center"><button class="btn btn-sm border" onclick="openModal('mAsis',${i},true)"><i class="fas fa-eye"></i></button> <button class="btn btn-sm border" onclick="openModal('mAsis',${i})"><i class="fas fa-pencil-alt"></i></button> <button class="btn btn-sm btn-danger" onclick="delItem('asistencias',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
+            DB.curCase.asistencias.forEach((x,i)=>ta.innerHTML+=`<tr><td>${i+1}</td><td>${x.f}</td><td>${x.o}</td><td>${x.ab}</td><td class="text-center"><button class="btn btn-sm border" onclick="openModal('mAsis',${i},true)"><i class="fas fa-eye"></i></button> <button class="btn btn-sm border" onclick="openModal('mAsis',${i})"><i class="fas fa-pencil-alt"></i></button> <button class="btn btn-sm btn-danger" onclick="delItem('asistencias',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
             
             // Etapa 2
             let t2=document.querySelector('#tbE2 tbody'); t2.innerHTML='';
-            if(DB.curCase.etapa2) DB.curCase.etapa2.forEach((x,i)=>t2.innerHTML+=`<tr><td>${i+1}</td><td>${x.f}</td><td>${x.o}</td><td>${x.d}</td><td class="text-center"><button class="btn btn-sm border" onclick="openModal('mE2',${i})"><i class="fas fa-pencil-alt"></i></button> <button class="btn btn-sm btn-danger" onclick="delItem('etapa2',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
+            DB.curCase.etapa2.forEach((x,i)=>t2.innerHTML+=`<tr><td>${i+1}</td><td>${x.f}</td><td>${x.o}</td><td>${x.d}</td><td class="text-center"><button class="btn btn-sm border" onclick="openModal('mE2',${i})"><i class="fas fa-pencil-alt"></i></button> <button class="btn btn-sm btn-danger" onclick="delItem('etapa2',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
             
-            // Monitoreo
+            // Monitoreo (AQUI FALLABA)
             let tm=document.querySelector('#tbMon tbody'); tm.innerHTML='';
-            if(DB.curCase.monitoreo) DB.curCase.monitoreo.forEach((x,i)=>tm.innerHTML+=`<tr><td>${i+1}</td><td>${x.f}</td><td>${x.a}</td><td class="text-center"><button class="btn btn-sm border" onclick="openModal('mMon',${i})"><i class="fas fa-pencil-alt"></i></button> <button class="btn btn-sm btn-danger" onclick="delItem('monitoreo',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
+            DB.curCase.monitoreo.forEach((x,i)=>tm.innerHTML+=`<tr><td>${i+1}</td><td>${x.f}</td><td>${x.a}</td><td class="text-center"><button class="btn btn-sm border" onclick="openModal('mMon',${i})"><i class="fas fa-pencil-alt"></i></button> <button class="btn btn-sm btn-danger" onclick="delItem('monitoreo',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
         }
 
-        // --- GESTIÓN DE MODALES ---
+        // --- MODALES ---
         function openModal(m, idx, viewOnly=false){
             let f = document.querySelector(`#${m} form`); 
             f.reset();
@@ -539,20 +523,16 @@
             if(idx=='N') DB.curCase[arr].push(obj); 
             else DB.curCase[arr][idx] = obj;
             
-            await saveDB(); 
-            renderAll(); 
-            modals[modId].hide();
+            await saveDB(); renderAll(); modals[modId].hide();
         }
 
         async function delItem(arr, i){ 
-            if(confirm('¿Está seguro de eliminar este registro?')){ 
+            if(confirm('¿Borrar?')){ 
                 DB.curCase[arr].splice(i,1); 
-                await saveDB();
-                renderAll(); 
+                await saveDB(); renderAll(); 
             } 
         }
 
-        // --- FAMILIA ---
         function openFam(){ renderAll(); modals.mFam.show(); toggleFam('list'); }
         function toggleFam(v){ 
             document.getElementById('famList').style.display=v=='list'?'block':'none'; 
@@ -561,49 +541,37 @@
         }
         
         async function saveFam(){
-            let obj={
-                a:v('faApe'), n:v('faNom'), p:v('faPar'), d:v('faDni'), 
-                dom:v('faDom'), cel:v('faCel'), o:v('faObs')
-            };
-            if(!obj.a || !obj.n) return alert('Apellido y Nombre son obligatorios');
-            
+            let obj={ a:v('faApe'), n:v('faNom'), p:v('faPar'), d:v('faDni'), dom:v('faDom'), cel:v('faCel'), o:v('faObs') };
+            if(!obj.a || !obj.n) return alert('Datos incompletos');
             DB.curCase.fam.push(obj); 
-            await saveDB();
-            toggleFam('list'); 
-            renderAll();
+            await saveDB(); toggleFam('list'); renderAll();
         }
 
-        // --- UTILS ---
         function v(id){ return document.getElementById(id).value; }
         
         const API="https://apis.datos.gob.ar/georef/api";
         async function loadAPI(){
             try{
-                const r=await fetch(`${API}/provincias?orden=nombre&max=24`);
-                const d=await r.json();
+                const r=await fetch(`${API}/provincias?orden=nombre&max=24`); const d=await r.json();
                 document.querySelectorAll('.geo-prov').forEach(s=>{
                     s.innerHTML='<option>Seleccionar...</option>';
                     d.provincias.forEach(p=>{let o=document.createElement('option');o.value=p.id;o.text=p.nombre;s.add(o)});
                     s.addEventListener('change',function(){if(this.dataset.t)loadDep(this.value,this.dataset.t)})
                 });
-            }catch(e){console.log("Error API Georef",e)}
+            }catch(e){}
         }
         async function loadDep(id,tid){
-            let s=document.getElementById(tid); s.innerHTML='<option>Cargando...</option>'; s.disabled=true;
-            const r=await fetch(`${API}/departamentos?provincia=${id}&max=200&orden=nombre`);
-            const d=await r.json();
+            let s=document.getElementById(tid); s.disabled=true;
+            const r=await fetch(`${API}/departamentos?provincia=${id}&max=200&orden=nombre`); const d=await r.json();
             s.innerHTML='<option>Seleccionar...</option>';
-            d.departamentos.forEach(x=>{let o=document.createElement('option');o.value=x.id;o.text=x.nombre;s.add(o)});
-            s.disabled=false;
+            d.departamentos.forEach(x=>{let o=document.createElement('option');o.value=x.id;o.text=x.nombre;s.add(o)}); s.disabled=false;
             s.addEventListener('change',function(){if(this.dataset.t)loadLoc(this.value,this.dataset.t)});
         }
         async function loadLoc(id,tid){
-            let s=document.getElementById(tid); s.innerHTML='<option>Cargando...</option>'; s.disabled=true;
-            const r=await fetch(`${API}/localidades?departamento=${id}&max=200&orden=nombre`);
-            const d=await r.json();
+            let s=document.getElementById(tid); s.disabled=true;
+            const r=await fetch(`${API}/localidades?departamento=${id}&max=200&orden=nombre`); const d=await r.json();
             s.innerHTML='<option>Seleccionar...</option>';
-            d.localidades.forEach(x=>{let o=document.createElement('option');o.value=x.id;o.text=x.nombre;s.add(o)});
-            s.disabled=false;
+            d.localidades.forEach(x=>{let o=document.createElement('option');o.value=x.id;o.text=x.nombre;s.add(o)}); s.disabled=false;
         }
     </script>
 </body>
