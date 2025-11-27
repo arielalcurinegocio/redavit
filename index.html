@@ -7,6 +7,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
     <style>
         :root {
             --primary: #0f2c52; --secondary: #6c757d; --accent: #3b82f6; --bg-light: #f4f6f9;
@@ -83,14 +85,6 @@
                     <div class="col-4"><label class="form-label">N° Documento</label><input type="text" id="rDni" class="form-control" required></div>
                     <div class="col-4"><label class="form-label">País</label><select class="form-select"><option>Argentina</option></select></div>
                     
-                    <div class="col-6"><label class="form-label">Domicilio</label><input type="text" class="form-control"></div>
-                    <div class="col-3"><label class="form-label">Localidad</label><input type="text" class="form-control"></div>
-                    <div class="col-3"><label class="form-label">C.P.</label><input type="text" class="form-control"></div>
-
-                    <div class="col-6"><label class="form-label">Email</label><input type="email" class="form-control" required></div>
-                    <div class="col-3"><label class="form-label">Tel. Fijo</label><input type="text" class="form-control"></div>
-                    <div class="col-3"><label class="form-label">Celular</label><input type="text" class="form-control"></div>
-
                     <div class="col-12 border-top pt-2 mt-3"><h6 class="text-primary small fw-bold">CREDENCIALES DE ACCESO</h6></div>
                     <div class="col-4"><label class="form-label">Usuario</label><input type="text" id="rUser" class="form-control" required></div>
                     <div class="col-4"><label class="form-label">Contraseña</label><input type="password" id="rP1" class="form-control" required></div>
@@ -306,133 +300,323 @@
     <div class="modal fade" id="mTransf" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-warning"><h5 class="modal-title">Transferir</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><select class="form-select geo-prov"><option>Cargando...</option></select></div><div class="modal-footer"><button class="btn btn-success" onclick="alert('Transferido');bootstrap.Modal.getInstance(document.getElementById('mTransf')).hide()">Aceptar</button></div></div></div></div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
     <script>
-        // --- DATABASE ---
+        // --- CONEXIÓN SUPABASE ---
+        const SUPABASE_URL = 'https://yqaiebdabrxgjwrmiacc.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_80AU6Mag7-wOJp4gmmzi3g_LdbAkpSb';
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // --- DATABASE LOCAL STATE ---
         const DB = {
-            users: JSON.parse(localStorage.getItem('rdv_users') || '[{"u":"admin","p":"1234","n":"Admin","a":"System"}]'),
-            cases: JSON.parse(localStorage.getItem('rdv_cases') || '[]'),
-            curCase: null, curUser: null
+            users: [],
+            cases: [],
+            curCase: null, 
+            curUser: null
         };
 
+        // --- INICIALIZACIÓN ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 1. Inicializar Modales
+            modals.mAsis = new bootstrap.Modal(document.getElementById('mAsis'));
+            modals.mE2 = new bootstrap.Modal(document.getElementById('mE2'));
+            modals.mMon = new bootstrap.Modal(document.getElementById('mMon'));
+            modals.mFam = new bootstrap.Modal(document.getElementById('mFam'));
+            
+            // 2. Cargar APIs Geográficas
+            loadAPI(); 
+            document.getElementById('sysDate').innerText = new Date().toLocaleDateString();
+
+            // 3. Cargar Datos desde Supabase
+            await loadFromSupabase();
+        });
+
+        // FUNCIÓN: CARGAR DATOS DE LA NUBE
+        async function loadFromSupabase() {
+            try {
+                // A. Usuarios
+                let { data: users, error: errU } = await supabase.from('usuarios').select('*');
+                if (users) DB.users = users;
+                else console.log("Nota: Tabla usuarios vacía o error", errU);
+
+                // B. Casos
+                let { data: cases, error: errC } = await supabase.from('casos').select('*');
+                if (cases) {
+                    // Mapeamos los datos para asegurar que los arrays JSON no sean null
+                    DB.cases = cases.map(c => ({
+                        ...c,
+                        fam: c.fam || [],
+                        asistencias: c.asistencias || [],
+                        etapa2: c.etapa2 || [],
+                        monitoreo: c.monitoreo || [],
+                        // Desempaquetamos 'extra' si existe, para tener 'dom' y otros a mano
+                        ...(c.extra || {})
+                    }));
+                } else console.log("Nota: Tabla casos vacía o error", errC);
+
+            } catch (e) {
+                console.error("Error conectando a Supabase:", e);
+                alert("Error de conexión. Revisa la consola.");
+            }
+        }
+
         // --- AUTH ---
-        function goView(v){ document.querySelectorAll('.view-section').forEach(x=>x.classList.remove('view-active')); document.getElementById(v).classList.add('view-active'); }
-        function register(){
-            let u={u:v('rUser'), p:v('rP1'), n:v('rNom'), a:v('rApe')}; if(u.p!=v('rP2')) return alert('Claves distintas');
-            DB.users.push(u); localStorage.setItem('rdv_users', JSON.stringify(DB.users)); alert('OK'); goView('view-login');
+        function goView(v){ 
+            document.querySelectorAll('.view-section').forEach(x=>x.classList.remove('view-active')); 
+            document.getElementById(v).classList.add('view-active'); 
         }
+        
+        async function register(){
+            let u = { u: v('rUser'), p: v('rP1'), n: v('rNom'), a: v('rApe') };
+            if (u.p != v('rP2')) return alert('Las contraseñas no coinciden');
+
+            // Insertar en Supabase
+            const { error } = await supabase.from('usuarios').insert([u]);
+            
+            if (error) {
+                alert('Error al registrar: ' + error.message);
+            } else {
+                alert('Usuario registrado exitosamente.');
+                await loadFromSupabase(); // Recargar la lista local
+                goView('view-login');
+            }
+        }
+
         function login(){
-            let usr=DB.users.find(x=>x.u==v('logUser') && x.p==v('logPass'));
-            if(usr){ DB.curUser=usr; goView('view-dashboard'); document.getElementById('dashUser').innerText=usr.n; searchCase(); }
-            else alert('Error credenciales (Prueba: admin/1234)');
+            // Validamos contra la lista en memoria (ya cargada desde Supabase)
+            let usr = DB.users.find(x => x.u == v('logUser') && x.p == v('logPass'));
+            if(usr){ 
+                DB.curUser = usr; 
+                goView('view-dashboard'); 
+                document.getElementById('dashUser').innerText = usr.n; 
+                searchCase(); 
+            } else {
+                alert('Credenciales incorrectas. Verifique usuario y contraseña.');
+            }
         }
+        
         function logout(){ location.reload(); }
 
         // --- DASHBOARD ---
         function searchCase(){
-            let q=v('searchIn').toLowerCase(), t=document.querySelector('#tRes tbody'); t.innerHTML='';
-            DB.cases.forEach(c=>{
-                if(!q || c.id.toLowerCase().includes(q) || c.ape.toLowerCase().includes(q) || c.dni.includes(q)){
-                    t.innerHTML+=`<tr><td>${c.id}</td><td>${c.ape}, ${c.nom}</td><td>${c.dni}</td><td><span class="badge bg-success">ACTIVO</span></td><td class="text-end"><button class="btn btn-sm btn-primary" onclick="openCase('${c.id}')">Abrir</button></td></tr>`;
+            let q = v('searchIn').toLowerCase();
+            let t = document.querySelector('#tRes tbody'); 
+            t.innerHTML = '';
+            
+            DB.cases.forEach(c => {
+                if(!q || c.id.toLowerCase().includes(q) || (c.ape && c.ape.toLowerCase().includes(q)) || (c.dni && c.dni.includes(q))){
+                    t.innerHTML += `<tr>
+                        <td>${c.id}</td>
+                        <td>${c.ape}, ${c.nom}</td>
+                        <td>${c.dni}</td>
+                        <td><span class="badge bg-success">ACTIVO</span></td>
+                        <td class="text-end"><button class="btn btn-sm btn-primary" onclick="openCase('${c.id}')">Abrir</button></td>
+                    </tr>`;
                 }
             });
         }
-        function newCase(){
-            let id = String(DB.cases.length+1).padStart(3,'0');
-            let nc = {id:id, ape:'', nom:'', dni:'', fam:[], asistencias:[], etapa2:[], monitoreo:[]};
-            DB.cases.push(nc); localStorage.setItem('rdv_cases', JSON.stringify(DB.cases));
-            openCase(id);
+
+        async function newCase(){
+            let id = String(Date.now()); // ID único basado en tiempo
+            // Objeto base local
+            let nc = {
+                id: id, ape: '', nom: '', dni: '', 
+                fam: [], asistencias: [], etapa2: [], monitoreo: [], extra: {}
+            };
+
+            // Crear fila vacía en Supabase
+            const { error } = await supabase.from('casos').insert([{
+                id: nc.id, ape: '', nom: '', dni: '', 
+                fam: [], asistencias: [], etapa2: [], monitoreo: [], extra: {}
+            }]);
+
+            if(!error){
+                DB.cases.push(nc);
+                openCase(id);
+            } else {
+                alert("Error al crear caso en la nube: " + error.message);
+            }
         }
 
         // --- SYSTEM MAIN ---
         function openCase(id){
-            DB.curCase = DB.cases.find(x=>x.id==id);
+            DB.curCase = DB.cases.find(x => x.id == id);
             goView('view-system');
-            document.getElementById('sysID').innerText=id; document.getElementById('sysUser').innerText=DB.curUser.n;
-            document.getElementById('e1_leg').value=id; document.getElementById('e1_ape').value=DB.curCase.ape; document.getElementById('e1_nom').value=DB.curCase.nom; document.getElementById('e1_dni').value=DB.curCase.dni;
+            
+            // Header Info
+            document.getElementById('sysID').innerText = id; 
+            document.getElementById('sysUser').innerText = DB.curUser.n;
+            
+            // Cargar datos en Inputs
+            document.getElementById('e1_leg').value = id; 
+            document.getElementById('e1_ape').value = DB.curCase.ape || ''; 
+            document.getElementById('e1_nom').value = DB.curCase.nom || ''; 
+            document.getElementById('e1_dni').value = DB.curCase.dni || '';
+            
+            // Cargar 'extra' (domicilio)
+            if(DB.curCase.dom) document.getElementById('e1_dom').value = DB.curCase.dom;
+            else document.getElementById('e1_dom').value = '';
+
             renderAll();
         }
-        function saveE1(){
-            DB.curCase.ape=v('e1_ape'); DB.curCase.nom=v('e1_nom'); DB.curCase.dni=v('e1_dni');
-            saveDB(); alert("Etapa 1 Guardada");
-        }
-        function saveDB(){ localStorage.setItem('rdv_cases', JSON.stringify(DB.cases)); }
 
-        // --- TABLAS Y MODALES ---
-        var modals={};
-        document.addEventListener('DOMContentLoaded', ()=>{
-            modals.mAsis=new bootstrap.Modal(document.getElementById('mAsis'));
-            modals.mE2=new bootstrap.Modal(document.getElementById('mE2'));
-            modals.mMon=new bootstrap.Modal(document.getElementById('mMon'));
-            modals.mFam=new bootstrap.Modal(document.getElementById('mFam'));
-            loadAPI(); document.getElementById('sysDate').innerText=new Date().toLocaleDateString();
-        });
+        async function saveE1(){
+            // 1. Actualizar estado local
+            DB.curCase.ape = v('e1_ape'); 
+            DB.curCase.nom = v('e1_nom'); 
+            DB.curCase.dni = v('e1_dni');
+            DB.curCase.dom = v('e1_dom'); // Se guardará en 'extra'
+
+            // 2. Guardar en Supabase
+            await saveDB(); 
+            alert("Etapa 1 guardada correctamente en la nube.");
+        }
+
+        // --- LA FUNCIÓN MÁGICA DE GUARDADO ---
+        async function saveDB(){ 
+            // Preparamos el objeto EXACTAMENTE como lo espera la tabla de Supabase
+            let casoParaNube = {
+                id: DB.curCase.id,
+                ape: DB.curCase.ape,
+                nom: DB.curCase.nom,
+                dni: DB.curCase.dni,
+                fam: DB.curCase.fam,
+                asistencias: DB.curCase.asistencias,
+                etapa2: DB.curCase.etapa2,
+                monitoreo: DB.curCase.monitoreo,
+                extra: { // Todo lo que no tiene columna propia va aquí
+                    dom: DB.curCase.dom,
+                    // Aquí podrías agregar más campos de formularios si los creas
+                }
+            };
+
+            // Upsert: Actualiza
+            const { error } = await supabase
+                .from('casos')
+                .upsert(casoParaNube);
+            
+            if(error) {
+                console.error("Error guardando:", error);
+                alert("Hubo un error al guardar: " + error.message);
+            }
+        }
+
+        // --- TABLAS Y RENDERIZADO ---
+        var modals = {};
 
         function renderAll(){
-            // Familia (Muestra campos completos)
-            let tf=document.querySelector('#tbFam tbody'); tf.innerHTML='';
-            DB.curCase.fam.forEach((x,i)=>tf.innerHTML+=`<tr><td>${x.a}, ${x.n}</td><td>${x.p}</td><td>${x.d}</td><td><small>${x.cel} / ${x.dom}</small></td><td><small>${x.o}</small></td><td class="text-end"><button class="btn btn-sm btn-danger" onclick="delItem('fam',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
-            document.getElementById('cntFam').innerText=DB.curCase.fam.length;
+            // Familia
+            let tf = document.querySelector('#tbFam tbody'); tf.innerHTML='';
+            if(DB.curCase.fam) DB.curCase.fam.forEach((x,i)=>tf.innerHTML+=`<tr><td>${x.a}, ${x.n}</td><td>${x.p}</td><td>${x.d}</td><td><small>${x.cel} / ${x.dom}</small></td><td><small>${x.o}</small></td><td class="text-end"><button class="btn btn-sm btn-danger" onclick="delItem('fam',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
+            document.getElementById('cntFam').innerText = DB.curCase.fam ? DB.curCase.fam.length : 0;
             
             // Asistencias
             let ta=document.querySelector('#tbAsis tbody'); ta.innerHTML='';
-            DB.curCase.asistencias.forEach((x,i)=>ta.innerHTML+=`<tr><td>${i+1}</td><td>${x.f}</td><td>${x.o}</td><td>${x.ab}</td><td class="text-center"><button class="btn btn-sm border" onclick="openModal('mAsis',${i},true)"><i class="fas fa-eye"></i></button> <button class="btn btn-sm border" onclick="openModal('mAsis',${i})"><i class="fas fa-pencil-alt"></i></button> <button class="btn btn-sm btn-danger" onclick="delItem('asistencias',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
+            if(DB.curCase.asistencias) DB.curCase.asistencias.forEach((x,i)=>ta.innerHTML+=`<tr><td>${i+1}</td><td>${x.f}</td><td>${x.o}</td><td>${x.ab}</td><td class="text-center"><button class="btn btn-sm border" onclick="openModal('mAsis',${i},true)"><i class="fas fa-eye"></i></button> <button class="btn btn-sm border" onclick="openModal('mAsis',${i})"><i class="fas fa-pencil-alt"></i></button> <button class="btn btn-sm btn-danger" onclick="delItem('asistencias',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
+            
             // Etapa 2
-             let t2=document.querySelector('#tbE2 tbody'); t2.innerHTML='';
-             DB.curCase.etapa2.forEach((x,i)=>t2.innerHTML+=`<tr><td>${i+1}</td><td>${x.f}</td><td>${x.o}</td><td>${x.d}</td><td class="text-center"><button class="btn btn-sm border" onclick="openModal('mE2',${i})"><i class="fas fa-pencil-alt"></i></button> <button class="btn btn-sm btn-danger" onclick="delItem('etapa2',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
+            let t2=document.querySelector('#tbE2 tbody'); t2.innerHTML='';
+            if(DB.curCase.etapa2) DB.curCase.etapa2.forEach((x,i)=>t2.innerHTML+=`<tr><td>${i+1}</td><td>${x.f}</td><td>${x.o}</td><td>${x.d}</td><td class="text-center"><button class="btn btn-sm border" onclick="openModal('mE2',${i})"><i class="fas fa-pencil-alt"></i></button> <button class="btn btn-sm btn-danger" onclick="delItem('etapa2',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
+            
             // Monitoreo
-             let tm=document.querySelector('#tbMon tbody'); tm.innerHTML='';
-             DB.curCase.monitoreo.forEach((x,i)=>tm.innerHTML+=`<tr><td>${i+1}</td><td>${x.f}</td><td>${x.a}</td><td class="text-center"><button class="btn btn-sm border" onclick="openModal('mMon',${i})"><i class="fas fa-pencil-alt"></i></button> <button class="btn btn-sm btn-danger" onclick="delItem('monitoreo',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
+            let tm=document.querySelector('#tbMon tbody'); tm.innerHTML='';
+            if(DB.curCase.monitoreo) DB.curCase.monitoreo.forEach((x,i)=>tm.innerHTML+=`<tr><td>${i+1}</td><td>${x.f}</td><td>${x.a}</td><td class="text-center"><button class="btn btn-sm border" onclick="openModal('mMon',${i})"><i class="fas fa-pencil-alt"></i></button> <button class="btn btn-sm btn-danger" onclick="delItem('monitoreo',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
         }
 
-        // --- LOGICA MODALES GENERICOS ---
+        // --- GESTIÓN DE MODALES ---
         function openModal(m, idx, viewOnly=false){
-            let f = document.querySelector(`#${m} form`); f.reset();
+            let f = document.querySelector(`#${m} form`); 
+            f.reset();
             f.querySelectorAll('input,select,textarea').forEach(e=>e.disabled=viewOnly);
             document.querySelector(`#${m} .modal-footer`).style.display = viewOnly?'none':'block';
             f.querySelector('input[type=hidden]').value = idx;
+            
             if(idx !== 'N'){
                 let arr = m=='mAsis'?'asistencias':(m=='mE2'?'etapa2':'monitoreo');
                 let data = DB.curCase[arr][idx];
-                if(data.f) f.querySelector('input[type=date]').value = data.f; // Carga simple
+                if(data && data.f) f.querySelector('input[type=date]').value = data.f; 
+                // Aquí podrías cargar más campos específicos si lo deseas
             }
             modals[m].show();
         }
 
-        function saveGen(arr, hidId, modId){
+        async function saveGen(arr, hidId, modId){
             let idx = v(hidId), obj = {}; 
+            
             if(arr=='asistencias') obj={f:v('aFec'), o:v('aOrg'), ab:Array.from(document.getElementById('aAbo').selectedOptions).map(x=>x.text).join(', '), obs:v('aObs')};
-            if(arr=='etapa2') obj={f:v('e2Fec'), o:v('e2Org'), d:v('e2Dep')};
-            if(arr=='monitoreo') obj={f:v('mFec'), a:v('mAuto')};
-            if(idx=='N') DB.curCase[arr].push(obj); else DB.curCase[arr][idx] = obj;
-            saveDB(); renderAll(); modals[modId].hide();
+            if(arr=='etapa2') obj={f:v('e2Fec'), o:v('e2Org'), d:v('e2Dep'), mic:v('e2Mic')};
+            if(arr=='monitoreo') obj={f:v('mFec'), a:v('mAuto'), obs:v('mObs')};
+            
+            if(idx=='N') DB.curCase[arr].push(obj); 
+            else DB.curCase[arr][idx] = obj;
+            
+            await saveDB(); // Guardar cambios en nube
+            renderAll(); 
+            modals[modId].hide();
         }
 
-        function delItem(arr, i){ if(confirm('¿Borrar?')){ DB.curCase[arr].splice(i,1); saveDB(); renderAll(); } }
+        async function delItem(arr, i){ 
+            if(confirm('¿Está seguro de eliminar este registro?')){ 
+                DB.curCase[arr].splice(i,1); 
+                await saveDB(); // Guardar cambios en nube
+                renderAll(); 
+            } 
+        }
 
-        // --- LOGICA GRUPO FAMILIAR COMPLETO ---
+        // --- FAMILIA ---
         function openFam(){ renderAll(); modals.mFam.show(); toggleFam('list'); }
-        function toggleFam(v){ document.getElementById('famList').style.display=v=='list'?'block':'none'; document.getElementById('famForm').style.display=v=='form'?'block':'none'; if(v=='form') document.querySelectorAll('#famForm input, #famForm textarea').forEach(i=>i.value=''); }
-        function saveFam(){
+        function toggleFam(v){ 
+            document.getElementById('famList').style.display=v=='list'?'block':'none'; 
+            document.getElementById('famForm').style.display=v=='form'?'block':'none'; 
+            if(v=='form') document.querySelectorAll('#famForm input, #famForm textarea').forEach(i=>i.value=''); 
+        }
+        
+        async function saveFam(){
             let obj={
                 a:v('faApe'), n:v('faNom'), p:v('faPar'), d:v('faDni'), 
                 dom:v('faDom'), cel:v('faCel'), o:v('faObs')
             };
-            if(!obj.a || !obj.n) return alert('Apellido y Nombre obligatorios');
-            DB.curCase.fam.push(obj); saveDB(); toggleFam('list'); renderAll();
+            if(!obj.a || !obj.n) return alert('Apellido y Nombre son obligatorios');
+            
+            DB.curCase.fam.push(obj); 
+            await saveDB(); // Guardar cambios
+            toggleFam('list'); 
+            renderAll();
         }
 
         // --- UTILS ---
         function v(id){ return document.getElementById(id).value; }
-        function borrarTodo(){ if(confirm("Reset?")){ localStorage.clear(); location.reload(); } }
-
-        // --- GEOREF API ---
+        
+        // --- GEOREF API (Datos del Gobierno) ---
         const API="https://apis.datos.gob.ar/georef/api";
         async function loadAPI(){
-            try{const r=await fetch(`${API}/provincias?orden=nombre&max=24`);const d=await r.json();
-            document.querySelectorAll('.geo-prov').forEach(s=>{s.innerHTML='<option>Seleccionar...</option>';d.provincias.forEach(p=>{let o=document.createElement('option');o.value=p.id;o.text=p.nombre;s.add(o)});s.addEventListener('change',function(){if(this.dataset.t)loadDep(this.value,this.dataset.t)})});}catch(e){}
+            try{
+                const r=await fetch(`${API}/provincias?orden=nombre&max=24`);
+                const d=await r.json();
+                document.querySelectorAll('.geo-prov').forEach(s=>{
+                    s.innerHTML='<option>Seleccionar...</option>';
+                    d.provincias.forEach(p=>{let o=document.createElement('option');o.value=p.id;o.text=p.nombre;s.add(o)});
+                    s.addEventListener('change',function(){if(this.dataset.t)loadDep(this.value,this.dataset.t)})
+                });
+            }catch(e){console.log("Error API Georef",e)}
         }
-        async function loadDep(id,tid){let s=document.getElementById(tid);s.innerHTML='<option>Cargando...</option>';s.disabled=true;const r=await fetch(`${API}/departamentos?provincia=${id}&max=200&orden=nombre`);const d=await r.json();s.innerHTML='<option>Seleccionar...</option>';d.departamentos.forEach(x=>{let o=document.createElement('option');o.value=x.id;o.text=x.nombre;s.add(o)});s.disabled=false;s.addEventListener('change',function(){if(this.dataset.t)loadLoc(this.value,this.dataset.t)});}
-        async function loadLoc(id,tid){let s=document.getElementById(tid);s.innerHTML='<option>Cargando...</option>';s.disabled=true;const r=await fetch(`${API}/localidades?departamento=${id}&max=200&orden=nombre`);const d=await r.json();s.innerHTML='<option>Seleccionar...</option>';d.localidades.forEach(x=>{let o=document.createElement('option');o.value=x.id;o.text=x.nombre;s.add(o)});s.disabled=false;}
+        async function loadDep(id,tid){
+            let s=document.getElementById(tid); s.innerHTML='<option>Cargando...</option>'; s.disabled=true;
+            const r=await fetch(`${API}/departamentos?provincia=${id}&max=200&orden=nombre`);
+            const d=await r.json();
+            s.innerHTML='<option>Seleccionar...</option>';
+            d.departamentos.forEach(x=>{let o=document.createElement('option');o.value=x.id;o.text=x.nombre;s.add(o)});
+            s.disabled=false;
+            s.addEventListener('change',function(){if(this.dataset.t)loadLoc(this.value,this.dataset.t)});
+        }
+        async function loadLoc(id,tid){
+            let s=document.getElementById(tid); s.innerHTML='<option>Cargando...</option>'; s.disabled=true;
+            const r=await fetch(`${API}/localidades?departamento=${id}&max=200&orden=nombre`);
+            const d=await r.json();
+            s.innerHTML='<option>Seleccionar...</option>';
+            d.localidades.forEach(x=>{let o=document.createElement('option');o.value=x.id;o.text=x.nombre;s.add(o)});
+            s.disabled=false;
+        }
     </script>
 </body>
 </html>
