@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REDAVIT | Sistema de Gestión Integral</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --primary: #0f2c52; --secondary: #6c757d; --accent: #3b82f6; --bg-light: #f4f6f9;
+            --header-height: 70px;
+        }
+        body { background-color: var(--bg-light); font-family: 'Segoe UI', sans-serif; font-size: 0.88rem; }
+
+        /* GESTIÓN DE VISTAS (SPA) */
+        .view-section { display: none; min-height: 100vh; }
+        .view-active { display: block; }
+        
+        /* LOGIN & REGISTER STYLE */
+        #view-login, #view-register { 
+            background: linear-gradient(135deg, var(--primary), #1a4a7c); 
+            align-items: center; justify-content: center;
+        }
+        #view-login.view-active, #view-register.view-active { display: flex; }
+
+        .auth-card { background: white; width: 100%; max-width: 450px; padding: 40px; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+        .reg-card { max-width: 850px; }
+
+        /* APP STYLES */
+        .main-header { position: fixed; top: 0; left: 0; right: 0; height: var(--header-height); background-color: var(--primary); color: white; z-index: 1030; box-shadow: 0 2px 10px rgba(0,0,0,0.2); display: flex; align-items: center; padding: 0 25px; }
+        .app-content { padding-top: var(--header-height); }
+        
+        .nav-tabs { border-bottom: 2px solid #dee2e6; background: #fff; padding-top: 10px; padding-left: 20px; }
+        .nav-link { color: var(--secondary); font-weight: 600; border: none; border-bottom: 3px solid transparent; }
+        .nav-link.active { color: var(--primary); border-bottom: 3px solid var(--primary); background: transparent; }
+        
+        .card-section { border: none; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); margin-bottom: 20px; background: white; }
+        .card-header-custom { background: white; border-bottom: 1px solid #eee; padding: 15px 20px; font-weight: 700; color: var(--primary); }
+        
+        .form-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #555; margin-bottom: 4px; }
+        .form-control, .form-select { font-size: 0.9rem; border-radius: 4px; }
+        .form-control:disabled { background-color: #e9ecef; }
+        
+        .table-custom thead th { background-color: #f1f3f5; color: #495057; font-weight: 600; font-size: 0.85rem; vertical-align: middle; }
+        .action-toolbar { background: white; padding: 12px 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+    <div id="view-login" class="view-section view-active">
+        <div class="auth-card text-center">
+            <i class="fas fa-globe-americas fa-4x text-primary mb-3"></i>
+            <h2 class="fw-bold text-dark">REDAVIT</h2>
+            <p class="text-muted mb-4">Acceso al Sistema Integral</p>
+            
+            <form onsubmit="event.preventDefault(); login();">
+                <div class="form-floating mb-3 text-start">
+                    <input type="text" class="form-control" id="logUser" placeholder="Usuario" value="admin">
+                    <label for="logUser">Usuario</label>
+                </div>
+                <div class="form-floating mb-4 text-start">
+                    <input type="password" class="form-control" id="logPass" placeholder="Contraseña" value="1234">
+                    <label for="logPass">Contraseña</label>
+                </div>
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary btn-lg">INGRESAR AL SISTEMA</button>
+                    <button type="button" class="btn btn-outline-secondary text-decoration-none" onclick="goView('view-register')">Crear Nueva Cuenta</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="view-register" class="view-section">
+        <div class="auth-card reg-card">
+            <h4 class="fw-bold text-primary mb-4 border-bottom pb-2">Registro de Nuevo Usuario</h4>
+            <form onsubmit="event.preventDefault(); register();">
+                <div class="row g-3 text-start">
+                    <div class="col-6"><label class="form-label">Apellido/s</label><input type="text" id="rApe" class="form-control" required></div>
+                    <div class="col-6"><label class="form-label">Nombre/s</label><input type="text" id="rNom" class="form-control" required></div>
+                    <div class="col-4"><label class="form-label">Tipo Doc</label><select class="form-select"><option>DNI</option><option>Pasaporte</option></select></div>
+                    <div class="col-4"><label class="form-label">N° Documento</label><input type="text" id="rDni" class="form-control" required></div>
+                    <div class="col-4"><label class="form-label">País</label><select class="form-select"><option>Argentina</option></select></div>
+                    
+                    <div class="col-6"><label class="form-label">Domicilio</label><input type="text" class="form-control"></div>
+                    <div class="col-3"><label class="form-label">Localidad</label><input type="text" class="form-control"></div>
+                    <div class="col-3"><label class="form-label">C.P.</label><input type="text" class="form-control"></div>
+
+                    <div class="col-6"><label class="form-label">Email</label><input type="email" class="form-control" required></div>
+                    <div class="col-3"><label class="form-label">Tel. Fijo</label><input type="text" class="form-control"></div>
+                    <div class="col-3"><label class="form-label">Celular</label><input type="text" class="form-control"></div>
+
+                    <div class="col-12 border-top pt-2 mt-3"><h6 class="text-primary small fw-bold">CREDENCIALES DE ACCESO</h6></div>
+                    <div class="col-4"><label class="form-label">Usuario</label><input type="text" id="rUser" class="form-control" required></div>
+                    <div class="col-4"><label class="form-label">Contraseña</label><input type="password" id="rP1" class="form-control" required></div>
+                    <div class="col-4"><label class="form-label">Repetir Contraseña</label><input type="password" id="rP2" class="form-control" required></div>
+                </div>
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <button type="button" class="btn btn-secondary px-4" onclick="goView('view-login')">Cancelar</button>
+                    <button type="submit" class="btn btn-success px-4">Registrar Usuario</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="view-dashboard" class="view-section bg-white">
+        <header class="main-header justify-content-between">
+            <div class="d-flex align-items-center"><i class="fas fa-globe-americas fa-lg me-2"></i> <span class="fw-bold">REDAVIT</span></div>
+            <div class="text-end text-white small">
+                <div><i class="fas fa-user me-1"></i> <span id="dashUser">Usuario</span></div>
+                <a href="#" onclick="logout()" class="text-warning text-decoration-none fw-bold">[Cerrar Sesión]</a>
+            </div>
+        </header>
+
+        <div class="container app-content">
+            <div class="text-center mb-5 mt-5">
+                <h2 class="fw-light text-secondary">Panel de Gestión</h2>
+                <p class="text-muted">Busque un caso existente o inicie uno nuevo.</p>
+                
+                <div class="input-group input-group-lg shadow-sm mt-4 mb-3" style="max-width: 700px; margin: 0 auto;">
+                    <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+                    <input type="text" id="searchIn" class="form-control border-start-0" placeholder="Buscar por Apellido, Nombre o DNI..." onkeyup="searchCase()">
+                    <button class="btn btn-primary px-4" onclick="searchCase()">Buscar</button>
+                </div>
+
+                <button class="btn btn-success rounded-pill px-4 shadow-sm" onclick="newCase()">
+                    <i class="fas fa-plus-circle me-2"></i>Crear Nuevo Formulario
+                </button>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light fw-bold text-primary"><i class="fas fa-list me-2"></i>Resultados de Búsqueda / Casos Recientes</div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle" id="tRes">
+                        <thead class="table-light"><tr><th>N° Formulario</th><th>Apellido y Nombre</th><th>DNI</th><th>Estado</th><th class="text-end">Acción</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-system" class="view-section">
+        <header class="main-header justify-content-between">
+            <div class="d-flex align-items-center">
+                <button class="btn btn-outline-light btn-sm me-3" onclick="goView('view-dashboard'); searchCase();"><i class="fas fa-arrow-left"></i> Volver al Panel</button>
+                <span class="badge bg-light text-dark border">Formulario: <span id="sysID" class="fw-bold">000</span></span>
+                <span class="badge bg-success ms-2">EN PROCESO</span>
+            </div>
+            <div class="text-end text-white small">
+                <div><i class="fas fa-user me-1"></i> <span id="sysUser">User</span></div>
+                <div><i class="far fa-calendar-alt me-1"></i> <span id="sysDate"></span></div>
+            </div>
+        </header>
+
+        <div class="bg-white shadow-sm sticky-top" style="top: var(--header-height); z-index: 1020;">
+            <ul class="nav nav-tabs container" id="mainTab" role="tablist">
+                <li class="nav-item"><button class="nav-link active" id="t1-tab" data-bs-toggle="tab" data-bs-target="#t1">1. Etapa 1 (Pre Retorno)</button></li>
+                <li class="nav-item"><button class="nav-link" id="t2-tab" data-bs-toggle="tab" data-bs-target="#t2">2. Asistencia Pre Retorno</button></li>
+                <li class="nav-item"><button class="nav-link" id="t3-tab" data-bs-toggle="tab" data-bs-target="#t3">3. Etapa 2 (Post Retorno)</button></li>
+                <li class="nav-item"><button class="nav-link" id="t4-tab" data-bs-toggle="tab" data-bs-target="#t4">4. Monitoreo</button></li>
+            </ul>
+        </div>
+
+        <div class="container app-content my-4">
+            <div class="tab-content">
+                
+                <div class="tab-pane fade show active" id="t1">
+                    <form id="frmE1">
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <div class="card card-section">
+                                    <div class="card-header-custom"><i class="fas fa-user"></i> Identificación</div>
+                                    <div class="card-body">
+                                        <div class="row g-3">
+                                            <div class="col-4"><label class="form-label">Legajo</label><input type="text" class="form-control fw-bold" id="e1_leg" readonly></div>
+                                            <div class="col-8"><label class="form-label">Motivo</label><input type="text" class="form-control" value="REGISTRO"></div>
+                                            <div class="col-6"><label class="form-label">Apellido</label><input type="text" class="form-control" id="e1_ape"></div>
+                                            <div class="col-6"><label class="form-label">Nombre</label><input type="text" class="form-control" id="e1_nom"></div>
+                                            <div class="col-4"><label class="form-label">DNI</label><input type="text" class="form-control" id="e1_dni"></div>
+                                            <div class="col-4"><label class="form-label">Nacionalidad</label><select class="form-select ddl-paises"><option>ARGENTINA</option></select></div>
+                                            <div class="col-4"><label class="form-label">Género</label><select class="form-select"><option>FEMENINO</option><option>MASCULINO</option></select></div>
+                                            
+                                            <div class="col-12 mt-2">
+                                                <div class="d-flex justify-content-between align-items-center border p-3 rounded bg-light">
+                                                    <div>
+                                                        <label class="form-label text-primary m-0"><i class="fas fa-users me-1"></i> GRUPO FAMILIAR</label>
+                                                        <div class="small text-muted"><span id="cntFam">0</span> miembros registrados</div>
+                                                    </div>
+                                                    <button type="button" class="btn btn-sm btn-primary" onclick="openFam()">
+                                                        <i class="fas fa-edit me-1"></i> Gestionar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card card-section">
+                                    <div class="card-header-custom"><i class="fas fa-map-marker-alt"></i> Residencia</div>
+                                    <div class="card-body">
+                                        <div class="row g-3">
+                                            <div class="col-6"><label class="form-label">País</label><select class="form-select ddl-paises"><option>ARGENTINA</option></select></div>
+                                            <div class="col-6"><label class="form-label">Provincia</label><select class="form-select geo-prov" id="p1" data-t="d1"><option>Cargando...</option></select></div>
+                                            <div class="col-6"><label class="form-label">Depto</label><select class="form-select geo-dep" id="d1" data-t="l1" disabled></select></div>
+                                            <div class="col-6"><label class="form-label">Localidad</label><select class="form-select geo-loc" id="l1" disabled></select></div>
+                                            <div class="col-12"><label class="form-label">Domicilio</label><input type="text" class="form-control" id="e1_dom"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="card card-section">
+                                    <div class="card-header-custom"><i class="fas fa-gavel"></i> Hecho y Judicial</div>
+                                    <div class="card-body">
+                                        <div class="row g-3">
+                                            <div class="col-12"><h6 class="text-primary small border-bottom pb-1">RESCATE</h6></div>
+                                            <div class="col-4"><label class="form-label">Provincia</label><select class="form-select geo-prov" id="p2" data-t="d2"><option>...</option></select></div>
+                                            <div class="col-4"><label class="form-label">Depto</label><select class="form-select geo-dep" id="d2" data-t="l2" disabled></select></div>
+                                            <div class="col-4"><label class="form-label">Loc</label><select class="form-select geo-loc" id="l2" disabled></select></div>
+                                            <div class="col-6"><label class="form-label">Organismo</label><select class="form-select"><option>PUNTO FOCAL</option></select></div>
+                                            <div class="col-6"><label class="form-label">Solicitud</label><select class="form-select"><option>LINEA 145</option></select></div>
+                                            <div class="col-12 mt-2"><h6 class="text-primary small border-bottom pb-1">EXPLOTACIÓN</h6></div>
+                                            <div class="col-4"><label class="form-label">Tipo</label><select class="form-select"><option>MIXTA</option></select></div>
+                                            <div class="col-4"><label class="form-label">Ámbito</label><select class="form-select"><option>RURAL</option></select></div>
+                                            <div class="col-4"><label class="form-label">Modalidad</label><select class="form-select"><option>FORZADO</option></select></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card card-section">
+                                    <div class="card-header-custom"><i class="fas fa-plane-arrival"></i> Retorno</div>
+                                    <div class="card-body">
+                                        <div class="row g-3">
+                                            <div class="col-6"><label class="form-label">Tipo</label><select class="form-select"><option>PROVINCIA ORIGEN</option></select></div>
+                                            <div class="col-6"><label class="form-label">Destino</label><select class="form-select geo-prov"><option>...</option></select></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-end pb-5"><button type="button" class="btn btn-primary btn-lg" onclick="saveE1()"><i class="fas fa-save me-2"></i>Guardar Etapa 1</button></div>
+                    </form>
+                </div>
+                
+                <div class="tab-pane fade" id="t2">
+                    <div class="action-toolbar d-flex justify-content-between">
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary shadow-sm" onclick="openModal('mAsis', 'N')"><i class="fas fa-plus-circle me-2"></i>Nueva</button>
+                            <button class="btn btn-outline-secondary" onclick="openFam()"><i class="fas fa-users me-2"></i>Hijos</button>
+                        </div>
+                        <button class="btn btn-warning text-dark shadow-sm" data-bs-toggle="modal" data-bs-target="#mTransf">Transferir</button>
+                    </div>
+                    <div class="card card-section"><div class="table-responsive"><table class="table table-custom table-hover mb-0" id="tbAsis"><thead><tr><th>N°</th><th>Fecha</th><th>Org</th><th>Abordaje</th><th>Acción</th></tr></thead><tbody></tbody></table></div></div>
+                </div>
+                <div class="tab-pane fade" id="t3">
+                    <div class="action-toolbar d-flex gap-2"><button class="btn btn-primary shadow-sm" onclick="openModal('mE2', 'N')"><i class="fas fa-plus-circle me-2"></i>Nueva Etapa 2</button><button class="btn btn-outline-secondary" onclick="openFam()"><i class="fas fa-users me-2"></i>Hijos</button></div>
+                    <div class="card card-section"><div class="table-responsive"><table class="table table-custom table-hover mb-0" id="tbE2"><thead><tr><th>N°</th><th>Fecha</th><th>Org</th><th>Dependencia</th><th>Acción</th></tr></thead><tbody></tbody></table></div></div>
+                </div>
+                <div class="tab-pane fade" id="t4">
+                    <div class="action-toolbar"><button class="btn btn-primary shadow-sm" onclick="openModal('mMon', 'N')"><i class="fas fa-plus-circle me-2"></i>Nuevo Informe</button></div>
+                    <div class="card card-section"><div class="table-responsive"><table class="table table-custom table-hover mb-0" id="tbMon"><thead><tr><th>N°</th><th>Fecha</th><th>Autovalimiento</th><th>Acción</th></tr></thead><tbody></tbody></table></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="mFam" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Grupo Familiar</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light">
+        <div id="famList">
+            <div class="d-flex justify-content-between mb-3 align-items-center"><h6 class="text-primary fw-bold m-0">Miembros Registrados</h6><button class="btn btn-sm btn-success" onclick="toggleFam('form')"><i class="fas fa-plus me-1"></i> Agregar</button></div>
+            <div class="table-responsive bg-white border rounded"><table class="table mb-0 table-hover" id="tbFam"><thead class="table-light"><tr><th>Nombre y Apellido</th><th>Parentesco</th><th>DNI</th><th>Contacto</th><th>Obs</th><th class="text-end">Acción</th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <div id="famForm" style="display:none">
+            <div class="card border-0 shadow-sm"><div class="card-body">
+                <div class="row g-3">
+                    <div class="col-12"><h6 class="text-primary border-bottom pb-1">DATOS PERSONALES</h6></div>
+                    <div class="col-4"><label class="form-label">Apellido</label><input type="text" id="faApe" class="form-control"></div>
+                    <div class="col-4"><label class="form-label">Nombre</label><input type="text" id="faNom" class="form-control"></div>
+                    <div class="col-4"><label class="form-label">Parentesco</label><select id="faPar" class="form-select"><option>Hijo/a</option><option>Padre</option><option>Madre</option><option>Pareja</option><option>Otro</option></select></div>
+                    <div class="col-4"><label class="form-label">Tipo Doc</label><select id="faTipo" class="form-select"><option>DNI</option><option>Pasaporte</option><option>Precaria</option></select></div>
+                    <div class="col-4"><label class="form-label">N° Doc</label><input type="text" id="faDni" class="form-control"></div>
+                    <div class="col-4"><label class="form-label">Nacionalidad</label><select id="faNac" class="form-select"><option>Argentina</option></select></div>
+
+                    <div class="col-12 mt-3"><h6 class="text-primary border-bottom pb-1">UBICACIÓN Y CONTACTO</h6></div>
+                    <div class="col-3"><label class="form-label">País</label><select class="form-select"><option>Argentina</option></select></div>
+                    <div class="col-3"><label class="form-label">Provincia</label><select class="form-select geo-prov" id="fp1" data-t="fd1"><option>...</option></select></div>
+                    <div class="col-3"><label class="form-label">Depto</label><select class="form-select geo-dep" id="fd1" data-t="fl1" disabled></select></div>
+                    <div class="col-3"><label class="form-label">Localidad</label><select class="form-select geo-loc" id="fl1" disabled></select></div>
+                    <div class="col-6"><label class="form-label">Domicilio (Calle y N°)</label><input type="text" id="faDom" class="form-control"></div>
+                    <div class="col-2"><label class="form-label">Barrio</label><input type="text" id="faBar" class="form-control"></div>
+                    <div class="col-2"><label class="form-label">C.P.</label><input type="text" id="faCP" class="form-control"></div>
+                    <div class="col-4"><label class="form-label">Email</label><input type="text" id="faMail" class="form-control"></div>
+                    <div class="col-4"><label class="form-label">Tel. Fijo</label><input type="text" id="faFijo" class="form-control"></div>
+                    <div class="col-4"><label class="form-label">Celular</label><input type="text" id="faCel" class="form-control"></div>
+                    
+                    <div class="col-12 mt-3"><h6 class="text-primary border-bottom pb-1">OBSERVACIONES</h6></div>
+                    <div class="col-12"><textarea id="faObs" class="form-control" rows="3" placeholder="Escriba libremente aquí..."></textarea></div>
+                </div>
+            </div>
+            <div class="card-footer bg-white text-end"><button class="btn btn-secondary" onclick="toggleFam('list')">Cancelar</button><button class="btn btn-primary" onclick="saveFam()">Guardar Familiar</button></div></div>
+        </div>
+    </div></div></div></div>
+
+    <div class="modal fade" id="mAsis" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Asistencia</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light"><form id="fAsis"><input type="hidden" id="hAsis"><div class="row g-3"><div class="col-6"><label class="form-label">Fecha</label><input type="date" id="aFec" class="form-control"></div><div class="col-6"><label class="form-label">Org</label><select id="aOrg" class="form-select"><option>PUNTO FOCAL</option><option>ONG</option></select></div><div class="col-12"><label class="form-label">Abordaje</label><select id="aAbo" class="form-select" multiple style="height:70px"><option>PSICOLOGÍA</option><option>LEGAL</option></select></div><div class="col-12"><label class="form-label">Obs</label><textarea id="aObs" class="form-control"></textarea></div></div></form></div><div class="modal-footer"><button class="btn btn-primary" onclick="saveGen('asistencias','hAsis','mAsis')">Guardar</button></div></div></div></div>
+    <div class="modal fade" id="mE2" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Etapa 2</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light"><form id="fE2"><input type="hidden" id="hE2"><div class="row g-3"><div class="col-6"><label class="form-label">Fecha</label><input type="date" id="e2Fec" class="form-control"></div><div class="col-6"><label class="form-label">Org</label><select id="e2Org" class="form-select"><option>NACIONAL</option></select></div><div class="col-6"><label class="form-label">Dep</label><input type="text" id="e2Dep" class="form-control"></div><div class="col-12"><label class="form-label">Microemprendimiento</label><input type="text" id="e2Mic" class="form-control"></div></div></form></div><div class="modal-footer"><button class="btn btn-primary" onclick="saveGen('etapa2','hE2','mE2')">Guardar</button></div></div></div></div>
+    <div class="modal fade" id="mMon" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header bg-monitoreo text-white"><h5 class="modal-title">Monitoreo</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light"><form id="fMon"><input type="hidden" id="hMon"><div class="row g-3"><div class="col-6"><label class="form-label">Fecha</label><input type="date" id="mFec" class="form-control"></div><div class="col-12"><label class="form-label">Autovalimiento</label><select id="mAuto" class="form-select"><option>LOGRADO</option><option>NO LOGRADO</option></select></div><div class="col-12"><label class="form-label">Obs</label><textarea id="mObs" class="form-control"></textarea></div></div></form></div><div class="modal-footer"><button class="btn btn-primary" onclick="saveGen('monitoreo','hMon','mMon')">Guardar</button></div></div></div></div>
+    <div class="modal fade" id="mTransf" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-warning"><h5 class="modal-title">Transferir</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><select class="form-select geo-prov"><option>Cargando...</option></select></div><div class="modal-footer"><button class="btn btn-success" onclick="alert('Transferido');bootstrap.Modal.getInstance(document.getElementById('mTransf')).hide()">Aceptar</button></div></div></div></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // --- DATABASE ---
+        const DB = {
+            users: JSON.parse(localStorage.getItem('rdv_users') || '[{"u":"admin","p":"1234","n":"Admin","a":"System"}]'),
+            cases: JSON.parse(localStorage.getItem('rdv_cases') || '[]'),
+            curCase: null, curUser: null
+        };
+
+        // --- AUTH ---
+        function goView(v){ document.querySelectorAll('.view-section').forEach(x=>x.classList.remove('view-active')); document.getElementById(v).classList.add('view-active'); }
+        function register(){
+            let u={u:v('rUser'), p:v('rP1'), n:v('rNom'), a:v('rApe')}; if(u.p!=v('rP2')) return alert('Claves distintas');
+            DB.users.push(u); localStorage.setItem('rdv_users', JSON.stringify(DB.users)); alert('OK'); goView('view-login');
+        }
+        function login(){
+            let usr=DB.users.find(x=>x.u==v('logUser') && x.p==v('logPass'));
+            if(usr){ DB.curUser=usr; goView('view-dashboard'); document.getElementById('dashUser').innerText=usr.n; searchCase(); }
+            else alert('Error credenciales (Prueba: admin/1234)');
+        }
+        function logout(){ location.reload(); }
+
+        // --- DASHBOARD ---
+        function searchCase(){
+            let q=v('searchIn').toLowerCase(), t=document.querySelector('#tRes tbody'); t.innerHTML='';
+            DB.cases.forEach(c=>{
+                if(!q || c.id.toLowerCase().includes(q) || c.ape.toLowerCase().includes(q) || c.dni.includes(q)){
+                    t.innerHTML+=`<tr><td>${c.id}</td><td>${c.ape}, ${c.nom}</td><td>${c.dni}</td><td><span class="badge bg-success">ACTIVO</span></td><td class="text-end"><button class="btn btn-sm btn-primary" onclick="openCase('${c.id}')">Abrir</button></td></tr>`;
+                }
+            });
+        }
+        function newCase(){
+            let id = String(DB.cases.length+1).padStart(3,'0');
+            let nc = {id:id, ape:'', nom:'', dni:'', fam:[], asistencias:[], etapa2:[], monitoreo:[]};
+            DB.cases.push(nc); localStorage.setItem('rdv_cases', JSON.stringify(DB.cases));
+            openCase(id);
+        }
+
+        // --- SYSTEM MAIN ---
+        function openCase(id){
+            DB.curCase = DB.cases.find(x=>x.id==id);
+            goView('view-system');
+            document.getElementById('sysID').innerText=id; document.getElementById('sysUser').innerText=DB.curUser.n;
+            document.getElementById('e1_leg').value=id; document.getElementById('e1_ape').value=DB.curCase.ape; document.getElementById('e1_nom').value=DB.curCase.nom; document.getElementById('e1_dni').value=DB.curCase.dni;
+            renderAll();
+        }
+        function saveE1(){
+            DB.curCase.ape=v('e1_ape'); DB.curCase.nom=v('e1_nom'); DB.curCase.dni=v('e1_dni');
+            saveDB(); alert("Etapa 1 Guardada");
+        }
+        function saveDB(){ localStorage.setItem('rdv_cases', JSON.stringify(DB.cases)); }
+
+        // --- TABLAS Y MODALES ---
+        var modals={};
+        document.addEventListener('DOMContentLoaded', ()=>{
+            modals.mAsis=new bootstrap.Modal(document.getElementById('mAsis'));
+            modals.mE2=new bootstrap.Modal(document.getElementById('mE2'));
+            modals.mMon=new bootstrap.Modal(document.getElementById('mMon'));
+            modals.mFam=new bootstrap.Modal(document.getElementById('mFam'));
+            loadAPI(); document.getElementById('sysDate').innerText=new Date().toLocaleDateString();
+        });
+
+        function renderAll(){
+            // Familia (Muestra campos completos)
+            let tf=document.querySelector('#tbFam tbody'); tf.innerHTML='';
+            DB.curCase.fam.forEach((x,i)=>tf.innerHTML+=`<tr><td>${x.a}, ${x.n}</td><td>${x.p}</td><td>${x.d}</td><td><small>${x.cel} / ${x.dom}</small></td><td><small>${x.o}</small></td><td class="text-end"><button class="btn btn-sm btn-danger" onclick="delItem('fam',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
+            document.getElementById('cntFam').innerText=DB.curCase.fam.length;
+            
+            // Asistencias
+            let ta=document.querySelector('#tbAsis tbody'); ta.innerHTML='';
+            DB.curCase.asistencias.forEach((x,i)=>ta.innerHTML+=`<tr><td>${i+1}</td><td>${x.f}</td><td>${x.o}</td><td>${x.ab}</td><td class="text-center"><button class="btn btn-sm border" onclick="openModal('mAsis',${i},true)"><i class="fas fa-eye"></i></button> <button class="btn btn-sm border" onclick="openModal('mAsis',${i})"><i class="fas fa-pencil-alt"></i></button> <button class="btn btn-sm btn-danger" onclick="delItem('asistencias',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
+            // Etapa 2
+             let t2=document.querySelector('#tbE2 tbody'); t2.innerHTML='';
+             DB.curCase.etapa2.forEach((x,i)=>t2.innerHTML+=`<tr><td>${i+1}</td><td>${x.f}</td><td>${x.o}</td><td>${x.d}</td><td class="text-center"><button class="btn btn-sm border" onclick="openModal('mE2',${i})"><i class="fas fa-pencil-alt"></i></button> <button class="btn btn-sm btn-danger" onclick="delItem('etapa2',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
+            // Monitoreo
+             let tm=document.querySelector('#tbMon tbody'); tm.innerHTML='';
+             DB.curCase.monitoreo.forEach((x,i)=>tm.innerHTML+=`<tr><td>${i+1}</td><td>${x.f}</td><td>${x.a}</td><td class="text-center"><button class="btn btn-sm border" onclick="openModal('mMon',${i})"><i class="fas fa-pencil-alt"></i></button> <button class="btn btn-sm btn-danger" onclick="delItem('monitoreo',${i})"><i class="fas fa-trash"></i></button></td></tr>`);
+        }
+
+        // --- LOGICA MODALES GENERICOS ---
+        function openModal(m, idx, viewOnly=false){
+            let f = document.querySelector(`#${m} form`); f.reset();
+            f.querySelectorAll('input,select,textarea').forEach(e=>e.disabled=viewOnly);
+            document.querySelector(`#${m} .modal-footer`).style.display = viewOnly?'none':'block';
+            f.querySelector('input[type=hidden]').value = idx;
+            if(idx !== 'N'){
+                let arr = m=='mAsis'?'asistencias':(m=='mE2'?'etapa2':'monitoreo');
+                let data = DB.curCase[arr][idx];
+                if(data.f) f.querySelector('input[type=date]').value = data.f; // Carga simple
+            }
+            modals[m].show();
+        }
+
+        function saveGen(arr, hidId, modId){
+            let idx = v(hidId), obj = {}; 
+            if(arr=='asistencias') obj={f:v('aFec'), o:v('aOrg'), ab:Array.from(document.getElementById('aAbo').selectedOptions).map(x=>x.text).join(', '), obs:v('aObs')};
+            if(arr=='etapa2') obj={f:v('e2Fec'), o:v('e2Org'), d:v('e2Dep')};
+            if(arr=='monitoreo') obj={f:v('mFec'), a:v('mAuto')};
+            if(idx=='N') DB.curCase[arr].push(obj); else DB.curCase[arr][idx] = obj;
+            saveDB(); renderAll(); modals[modId].hide();
+        }
+
+        function delItem(arr, i){ if(confirm('¿Borrar?')){ DB.curCase[arr].splice(i,1); saveDB(); renderAll(); } }
+
+        // --- LOGICA GRUPO FAMILIAR COMPLETO ---
+        function openFam(){ renderAll(); modals.mFam.show(); toggleFam('list'); }
+        function toggleFam(v){ document.getElementById('famList').style.display=v=='list'?'block':'none'; document.getElementById('famForm').style.display=v=='form'?'block':'none'; if(v=='form') document.querySelectorAll('#famForm input, #famForm textarea').forEach(i=>i.value=''); }
+        function saveFam(){
+            let obj={
+                a:v('faApe'), n:v('faNom'), p:v('faPar'), d:v('faDni'), 
+                dom:v('faDom'), cel:v('faCel'), o:v('faObs')
+            };
+            if(!obj.a || !obj.n) return alert('Apellido y Nombre obligatorios');
+            DB.curCase.fam.push(obj); saveDB(); toggleFam('list'); renderAll();
+        }
+
+        // --- UTILS ---
+        function v(id){ return document.getElementById(id).value; }
+        function borrarTodo(){ if(confirm("Reset?")){ localStorage.clear(); location.reload(); } }
+
+        // --- GEOREF API ---
+        const API="https://apis.datos.gob.ar/georef/api";
+        async function loadAPI(){
+            try{const r=await fetch(`${API}/provincias?orden=nombre&max=24`);const d=await r.json();
+            document.querySelectorAll('.geo-prov').forEach(s=>{s.innerHTML='<option>Seleccionar...</option>';d.provincias.forEach(p=>{let o=document.createElement('option');o.value=p.id;o.text=p.nombre;s.add(o)});s.addEventListener('change',function(){if(this.dataset.t)loadDep(this.value,this.dataset.t)})});}catch(e){}
+        }
+        async function loadDep(id,tid){let s=document.getElementById(tid);s.innerHTML='<option>Cargando...</option>';s.disabled=true;const r=await fetch(`${API}/departamentos?provincia=${id}&max=200&orden=nombre`);const d=await r.json();s.innerHTML='<option>Seleccionar...</option>';d.departamentos.forEach(x=>{let o=document.createElement('option');o.value=x.id;o.text=x.nombre;s.add(o)});s.disabled=false;s.addEventListener('change',function(){if(this.dataset.t)loadLoc(this.value,this.dataset.t)});}
+        async function loadLoc(id,tid){let s=document.getElementById(tid);s.innerHTML='<option>Cargando...</option>';s.disabled=true;const r=await fetch(`${API}/localidades?departamento=${id}&max=200&orden=nombre`);const d=await r.json();s.innerHTML='<option>Seleccionar...</option>';d.localidades.forEach(x=>{let o=document.createElement('option');o.value=x.id;o.text=x.nombre;s.add(o)});s.disabled=false;}
+    </script>
+</body>
+</html>
